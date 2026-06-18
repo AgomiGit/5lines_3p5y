@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from sklearn.linear_model import LinearRegression
 import yfinance as yf
-import fear_greed  # 引入最新穩定的 CNN API 套件
+import fear_greed
 import mpld3
 
 # 1. 解決繪圖中文字型碎碼問題
@@ -15,7 +15,7 @@ except:
     pass
 
 # ==========================================
-# 2. 數據抓取與五線譜計算
+# 2. 數據抓取與正宗樂活五線譜計算
 # ==========================================
 ticker = "QQQ"
 days_window = 875
@@ -45,7 +45,7 @@ df['TL_plus_1SD'] = df['TL'] + (1 * sd)
 df['TL_minus_1SD'] = df['TL'] - (1 * sd)
 df['TL_minus_2SD'] = df['TL'] - (2 * sd)
 
-# 繪製圖表 1：正宗樂活五線譜
+# 繪製圖表：正宗樂活五線譜 (這是你滿意的正確版本，完全保留)
 fig1, ax1 = plt.subplots(figsize=(12, 6))
 ax1.plot(df.index, df['close'], label=f'{ticker} 真實收盤價', color='black', linewidth=2)
 ax1.plot(df.index, df['TL_plus_2SD'], label='極樂觀線 (+2SD)', color='red', linestyle='--')
@@ -55,53 +55,42 @@ ax1.plot(df.index, df['TL_minus_1SD'], label='相對悲觀線 (-1SD)', color='bl
 ax1.plot(df.index, df['TL_minus_2SD'], label='極悲觀線 (-2SD)', color='purple', linestyle='--')
 
 last_date = df.index[-1].strftime('%Y-%m-%d')
-ax1.set_title(f'{ticker} 正宗樂活五線譜 (數據截至: {last_date})', fontsize=14, fontweight='bold')
+ax1.set_title(f'{ticker} 正宗樂活五線譜 (觀測週期: 3.5年直線版，最後更新: {last_date})', fontsize=14, fontweight='bold')
 ax1.set_xlabel('日期 (Date)')
 ax1.set_ylabel('價格 (USD)')
 ax1.legend(loc='upper left', bbox_to_anchor=(1, 1))
 ax1.grid(True, alpha=0.3)
 plt.tight_layout()
 
-# ==========================================
-# 3. 獲取 CNN Fear & Greed Index
-# ==========================================
-print("正在獲取 CNN Fear & Greed Index 數據...")
-fg_data = fear_greed.get()
-current_fg_score = fg_data['score']
-current_fg_rating = fg_data['rating'].upper()
-
-# 獲取 CNN 內建的一年歷史情緒數據
-fg_history = fg_data.get('historical_data', [])
-if fg_history:
-    df_fg = pd.DataFrame(fg_history)
-    df_fg['x'] = pd.to_datetime(df_fg['x'], unit='ms') # 轉換 CNN 時間戳記
-    df_fg = df_fg.sort_values('x')
-else:
-    # 備用方案：如果結構微調，建立一組空資料避免程式崩潰
-    df_fg = pd.DataFrame(columns=['x', 'y'])
-
-# 繪製圖表 2：CNN 情緒走勢圖
-fig2, ax2 = plt.subplots(figsize=(12, 4))
-if not df_fg.empty:
-    ax2.plot(df_fg['x'], df_fg['y'], color='purple', linewidth=2, label='Fear & Greed Index')
-# 繪製 25, 50, 75 基準線
-ax2.axhline(y=25, color='red', linestyle=':', alpha=0.6, label='極度恐慌 (25)')
-ax2.axhline(y=50, color='gray', linestyle=':', alpha=0.4)
-ax2.axhline(y=75, color='green', linestyle=':', alpha=0.6, label='極度貪婪 (75)')
-
-ax2.set_title(f'CNN Fear & Greed Index 歷史走勢 (最新分數: {current_fg_score} - {current_fg_rating})', fontsize=14, fontweight='bold')
-ax2.set_ylim(0, 100)
-ax2.set_ylabel('Score (0-100)')
-ax2.legend(loc='upper left', bbox_to_anchor=(1, 1))
-ax2.grid(True, alpha=0.3)
-plt.tight_layout()
-
-# ==========================================
-# 4. 將雙圖表整合並輸出為單一 HTML 網頁
-# ==========================================
 chart1_html = mpld3.fig_to_html(fig1)
-chart2_html = mpld3.fig_to_html(fig2)
 
+# ==========================================
+# 3. 獲取 CNN Fear & Greed 當前最新即時分數
+# ==========================================
+print("正在獲取 CNN Fear & Greed 當前分數...")
+try:
+    fg_data = fear_greed.get()
+    current_fg_score = float(fg_data['score'])
+    current_fg_rating = fg_data['rating'].upper()
+except:
+    current_fg_score = 50.0
+    current_fg_rating = "ERROR"
+
+# 根據分數決定儀表板指針顏色
+if current_fg_score <= 25:
+    gauge_color = "#cc0000" # 極度恐慌 - 紅色
+elif current_fg_score <= 45:
+    gauge_color = "#ff9900" # 恐慌 - 橘色
+elif current_fg_score <= 55:
+    gauge_color = "#888888" # 中立 - 灰色
+elif current_fg_score <= 75:
+    gauge_color = "#66cc00" # 貪婪 - 淺綠
+else:
+    gauge_color = "#008800" # 極度貪婪 - 深綠
+
+# ==========================================
+# 4. 輸出全新排版網頁 (包含超精美 HTML5 視覺化情緒計量條)
+# ==========================================
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""
     <!DOCTYPE html>
@@ -110,51 +99,73 @@ with open("index.html", "w", encoding="utf-8") as f:
         <meta charset="utf-8">
         <title>{ticker} 投資決策儀表板</title>
         <style>
-            body {{ font-family: Arial, sans-serif; margin: 30px; background-color: #f5f5f5; text-align: center; }}
-            .container {{ background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: inline-block; margin-bottom: 20px; width: 85%; max-width: 1200px; }}
-            h1 {{ color: #333; margin-bottom: 5px; }}
-            h2 {{ color: #666; font-size: 16px; margin-bottom: 25px; }}
-            .metric-box {{ display: flex; justify-content: center; gap: 40px; margin-bottom: 25px; }}
-            .metric {{ background: #fff; padding: 15px 25px; border-radius: 6px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }}
-            .metric-value {{ font-size: 24px; font-weight: bold; color: #111; margin-top: 5px; }}
-            .info {{ margin-top: 20px; font-size: 13px; color: #888; }}
+            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; margin: 30px; background-color: #f8f9fa; text-align: center; color: #333; }}
+            .container {{ background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: inline-block; margin-bottom: 25px; width: 85%; max-width: 1100px; }}
+            h1 {{ color: #111; font-size: 28px; margin-bottom: 5px; }}
+            h2 {{ color: #6c757d; font-size: 15px; font-weight: normal; margin-bottom: 30px; }}
+            
+            /* 數據卡片排版 */
+            .metric-box {{ display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; flex-wrap: wrap; }}
+            .metric {{ background: #fff; padding: 15px 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); min-width: 180px; }}
+            .metric-title {{ font-size: 13px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }}
+            .metric-value {{ font-size: 26px; font-weight: bold; color: #111; margin-top: 8px; }}
+            
+            /* CNN 網頁原生感情緒進度條 */
+            .gauge-wrapper {{ background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); display: inline-block; width: 85%; max-width: 1100px; margin-bottom: 25px; text-align: left; box-sizing: border-box; }}
+            .gauge-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #111; }}
+            .gauge-bar-bg {{ background: #e9ecef; height: 24px; border-radius: 12px; position: relative; overflow: hidden; display: flex; }}
+            .gauge-fill {{ background: {gauge_color}; width: {current_fg_score}%; height: 100%; border-radius: 12px 0 0 12px; transition: width 1s ease-in-out; }}
+            .gauge-text {{ position: absolute; right: 15px; top: 2px; color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
+            .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #6c757d; font-weight: bold; }}
+            
+            .info {{ margin-top: 30px; font-size: 13px; color: #adb5bd; }}
         </style>
     </head>
     <body>
-        <h1>{ticker} 🎯 投資決策自動儀表板</h1>
-        <h2>結合統計學價格動態與美股情緒指標</h2>
+        <h1>{ticker} 🎯 投資決策儀表板</h1>
+        <h2>數據驅動看板：完美結合統計學價格軌道與美股即時情緒指標</h2>
         
         <div class="metric-box">
             <div class="metric">
-                <div>{ticker} 最新收盤價</div>
+                <div class="metric-title">{ticker} 最新收盤價</div>
                 <div class="metric-value">${df['close'].iloc[-1]:.2f}</div>
             </div>
             <div class="metric">
-                <div>五線譜中軸 (TL)</div>
-                <div class="metric-value">${df['TL'].iloc[-1]:.2f}</div>
+                <div class="metric-title">五線譜中軸 (TL)</div>
+                <div class="metric-value" style="color: #008800;">${df['TL'].iloc[-1]:.2f}</div>
             </div>
             <div class="metric">
-                <div>CNN 恐懼與貪婪指數</div>
-                <div class="metric-value" style="color: {'#cc0000' if current_fg_score <= 25 else '#008800' if current_fg_score >= 75 else '#333'}">
-                    {current_fg_score} ({current_fg_rating})
-                </div>
+                <div class="metric-title">CNN 即時情緒狀態</div>
+                <div class="metric-value" style="color: {gauge_color};">{current_fg_rating}</div>
             </div>
         </div>
 
-        <div class="container">
-            {chart1_html}
+        <div class="gauge-wrapper">
+            <div class="gauge-title">📊 CNN Fear & Greed Index 即時量表 (當前分數: {current_fg_score})</div>
+            <div class="gauge-bar-bg">
+                <div class="gauge-fill"></div>
+                <span class="gauge-text" style="left: calc({current_fg_score}% - 25px); color: { '#333' if current_fg_score < 10 else '#fff' }; text-shadow: { 'none' if current_fg_score < 10 else '1px 1px 2px rgba(0,0,0,0.5)' };">{current_fg_score}</span>
+            </div>
+            <div class="gauge-labels">
+                <span style="color: #cc0000;">極度恐慌 (0)</span>
+                <span style="color: #ff9900;">恐慌 (25)</span>
+                <span style="color: #888888;">中立 (50)</span>
+                <span style="color: #66cc00;">貪婪 (75)</span>
+                <span style="color: #008800;">極度貪婪 (100)</span>
+            </div>
         </div>
         
         <br>
-        
+
         <div class="container">
-            {chart2_html}
+            <div style="font-size: 16px; font-weight: bold; text-align: left; margin-bottom: 15px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖</div>
+            {chart1_html}
         </div>
 
         <div class="info">
-            <p>數據更新時間：{last_date} | 網頁由 GitHub Actions 免費雲端伺服器每日自動化編譯生成</p>
+            <p>最後更新日期：{last_date} | 本網頁由 GitHub Actions 雲端虛擬機於美股收盤後天天自動執行更新</p>
         </div>
     </body>
     </html>
     """)
-print("包含 CNN 恐懼貪婪指數的雙圖表網頁更新成功！")
+print("視覺化儀表板網頁 index.html 產生成功！")
