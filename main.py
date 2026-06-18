@@ -1,198 +1,238 @@
-import json
-import os
+import numpy as np
 import pandas as pd
-from openbb import obb
+from sklearn.linear_model import LinearRegression
+import yfinance as yf
+import fear_greed
+import json
 
-print("正在透過 OpenBB 抓取 QQQ 最新數據...")
-# 1. 抓取歷史數據
-df = obb.equity.price.historical(symbol="QQQ", provider="yfinance").to_df()
-df.index = pd.to_datetime(df.index)
+# ==========================================
+# 1. 數據抓取與正宗樂活五線譜計算 (完全保留你滿意的正確版本)
+# ==========================================
+ticker = "QQQ"
+days_window = 875
 
-# 2. 計算 3.5 年五線譜 (840 交易日)
-window = 840
-df["MA"] = df["close"].rolling(window=window).mean()
-df["STD"] = df["close"].rolling(window=window).std()
+print(f"正在抓取 {ticker} 的歷史數據...")
+df_yf = yf.download(ticker, start="2022-01-01")
 
-df["悲觀線"] = df["MA"] - 2 * df["STD"]
-df["相對悲觀線"] = df["MA"] - 1 * df["STD"]
-df["趨勢中線"] = df["MA"]
-df["相對樂觀線"] = df["MA"] + 1 * df["STD"]
-df["樂觀線"] = df["MA"] + 2 * df["STD"]
+if isinstance(df_yf.columns, pd.MultiIndex):
+    df_yf.columns = df_yf.columns.droplevel(1)
 
-# 剔除尚未有均線的舊資料
-df_clean = df.dropna().reset_index()
+df_yf.index = pd.to_datetime(df_yf.index)
+df = df_yf[['Close']].rename(columns={'Close': 'close'}).tail(days_window).copy()
 
-# 3. 轉成前端 JavaScript 陣列所需的 JSON 格式
+df['X'] = np.arange(len(df))
+X = df['X'].values.reshape(-1, 1)
+Y = df['close'].values
+
+model = LinearRegression()
+model.fit(X, Y)
+df['TL'] = model.predict(X)
+
+residuals = Y - df['TL'].values
+sd = np.std(residuals)
+
+df['TL_plus_2SD'] = df['TL'] + (2 * sd)
+df['TL_plus_1SD'] = df['TL'] + (1 * sd)
+df['TL_minus_1SD'] = df['TL'] - (1 * sd)
+df['TL_minus_2SD'] = df['TL'] - (2 * sd)
+
+last_date = df.index[-1].strftime('%Y-%m-%d')
+
+# ==========================================
+# 2. 將計算好的數據打包成前端 JS 用的 JSON 格式
+# ==========================================
 chart_data = []
-for _, row in df_clean.iterrows():
-    chart_data.append(
-        {
-            "date": row["date"].strftime("%Y-%m-%d"),
-            "close": round(row["close"], 2),
-            "line1": round(row["悲觀線"], 2),
-            "line2": round(row["相對悲觀線"], 2),
-            "line3": round(row["趨勢中線"], 2),
-            "line4": round(row["相對樂觀線"], 2),
-            "line5": round(row["樂觀線"], 2),
-        }
-    )
-
+for date_idx, row in df.iterrows():
+    chart_data.append({
+        "date": date_idx.strftime('%Y-%m-%d'),
+        "close": round(row['close'], 2),
+        "tl": round(row['TL'], 2),
+        "p1sd": round(row['TL_plus_1SD'], 2),
+        "p2sd": round(row['TL_plus_2SD'], 2),
+        "m1sd": round(row['TL_minus_1SD'], 2),
+        "m2sd": round(row['TL_minus_2SD'], 2)
+    })
 json_data_str = json.dumps(chart_data)
 
-# 4. 核心：將 Plotly.js 點擊事件與 RWD 側邊欄直接寫入 HTML 模板
-# 註：這裡的雙大括號 {{}} 是為了防止 Python f-string 解析出錯，生成為網頁後會變回正常單大括號。
-html_template = f"""<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QQQ 五線譜動態儀表板</title>
-    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f7fb;
-            display: flex;
-            justify-content: center;
-        }}
-        .container {{
-            display: flex;
-            max-width: 1400px;
-            width: 100%;
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            gap: 25px;
-        }}
-        #chart {{
-            flex: 1;
-            min-width: 0;
-        }}
-        .sidebar {{
-            width: 320px;
-            border-left: 1px solid #eef2f5;
-            padding-left: 25px;
-            display: flex;
-            flex-direction: column;
-        }}
-        .data-card {{
-            border: 2px solid #e0e6ed;
-            padding: 20px;
-            border-radius: 8px;
-            background-color: #fcfdfe;
-            box-sizing: border-box;
-            transition: all 0.3s ease;
-        }}
-        .data-card.active {{
-            border-color: #4A90E2;
-            background-color: #ffffff;
-            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.1);
-        }}
-        h3 {{ margin-top: 0; color: #333; border-bottom: 2px solid #eef2f5; padding-bottom: 8px; }}
-        .price-box {{
-            background-color: #f1f5f9;
-            padding: 12px;
-            border-radius: 6px;
-            font-size: 18px;
-            font-weight: bold;
-            margin: 15px 0;
-            display: flex;
-            justify-content: space-between;
-        }}
-        ul {{ list-style: none; padding: 0; margin: 0; }}
-        li {{
-            padding: 10px 0;
-            border-bottom: 1px dashed #f0f0f0;
-            display: flex;
-            justify-content: space-between;
-            font-size: 14px;
-        }}
-        .hint {{ color: #888; font-size: 14px; line-height: 1.6; }}
-    </style>
-</head>
-<body>
+# ==========================================
+# 3. 獲取 CNN Fear & Greed 當前最新即時分數
+# ==========================================
+print("正在獲取 CNN Fear & Greed 當前分數...")
+try:
+    fg_data = fear_greed.get()
+    current_fg_score = float(fg_data['score'])
+    current_fg_rating = fg_data['rating'].upper()
+except:
+    current_fg_score = 50.0
+    current_fg_rating = "ERROR"
 
-<div class="container">
-    <div id="chart"></div>
+if current_fg_score <= 25:
+    gauge_color = "#cc0000" # 極度恐慌
+elif current_fg_score <= 45:
+    gauge_color = "#ff9900" # 恐慌
+elif current_fg_score <= 55:
+    gauge_color = "#888888" # 中立
+elif current_fg_score <= 75:
+    gauge_color = "#66cc00" # 貪婪
+else:
+    gauge_color = "#008800" # 極度貪婪
 
-    <div class="sidebar">
-        <div id="sidebar-content" class="data-card">
-            <h3>📊 點選數據節點</h3>
-            <p class="hint">請用滑鼠點擊圖表上 QQQ 收盤價（或五線譜）的任意時間點，此處將即時顯示當天的五線譜詳細價位資訊。</p>
-        </div>
-    </div>
-</div>
-
-<script>
-    // GitHub Action 執行時，Python 會把最新計算完的數據直接塞在這裡
-    const stockData = {json_data_str};
-
-    const dates = stockData.map(d => d.date);
-    const closes = stockData.map(d => d.close);
-    const colors = ["#2ca02c", "#94d2bd", "#ff7f0e", "#e29578", "#d62728"];
-
-    // 設定線條數據
-    const data = [
-        {{ x: dates, y: closes, name: 'QQQ 收盤價', type: 'scatter', mode: 'lines', line: {{color: '#111', width: 2}} }},
-        {{ x: dates, y: stockData.map(d => d.line1), name: '悲觀線', type: 'scatter', line: {{color: colors[0], width: 1}} }},
-        {{ x: dates, y: stockData.map(d => d.line2), name: '相對悲觀線', type: 'scatter', line: {{color: colors[1], width: 1, dash: 'dash'}} }},
-        {{ x: dates, y: stockData.map(d => d.line3), name: '趨勢中線', type: 'scatter', line: {{color: colors[2], width: 1.5}} }},
-        {{ x: dates, y: stockData.map(d => d.line4), name: '相對樂觀線', type: 'scatter', line: {{color: colors[3], width: 1, dash: 'dash'}} }},
-        {{ x: dates, y: stockData.map(d => d.line5), name: '樂觀線', type: 'scatter', line: {{color: colors[4], width: 1}} }}
-    ];
-
-    const layout = {{
-        title: 'QQQ 五線譜互動儀表板 (3.5Y 均線)',
-        xaxis: {{ title: '日期', type: 'date', rangeslider: {{visible: false}} }},
-        yaxis: {{ title: '價格 (USD)', side: 'left' }},
-        hovermode: 'x unified',
-        margin: {{ r: 20, l: 50, t: 60, b: 50 }},
-        legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }}
-    }};
-
-    const chartDiv = document.getElementById('chart');
-    Plotly.newPlot(chartDiv, data, layout);
-
-    // 【核心邏輯】捕捉網頁上的點擊事件，並動態改寫右側 HTML 內容
-    chartDiv.on('plotly_click', function(dataEvent){{
-        // 抓到點擊點的索引值
-        const pointIndex = dataEvent.points[0].pointIndex;
-        const selectedData = stockData[pointIndex];
-
-        if(selectedData) {{
-            const sidebar = document.getElementById('sidebar-content');
-            sidebar.className = "data-card active"; // 觸發發光邊框特效
-            
-            // 替換側邊欄的內容
-            sidebar.innerHTML = `
-                <h3 style="color: #4A90E2; border-bottom-color: #4A90E2;">📈 數據細節</h3>
-                <p><b>📅 日期:</b> \${{selectedData.date}}</p>
-                <div class="price-box">
-                    <span>💰 QQQ 股價:</span>
-                    <span style="color: #222;">\${{selectedData.close.toFixed(2)}}</span>
-                </div>
-                <h4 style="margin: 10px 0 5px 0; color: #555; font-size: 14px;">五線譜五個價位：</h4>
-                <ul>
-                    <li><span style="color:\${{colors[4]}}; font-weight:bold;">🔴 樂觀線:</span> <span>\${{selectedData.line5.toFixed(2)}}</span></li>
-                    <li><span style="color:\${{colors[3]}}; font-weight:bold;">🟠 相對樂觀:</span> <span>\${{selectedData.line4.toFixed(2)}}</span></li>
-                    <li><span style="color:\${{colors[2]}}; font-weight:bold;">🔵 趨勢中線:</span> <span>\${{selectedData.line3.toFixed(2)}}</span></li>
-                    <li><span style="color:\${{colors[1]}}; font-weight:bold;">🟢 相對悲觀:</span> <span>\${{selectedData.line2.toFixed(2)}}</span></li>
-                    <li><span style="color:\${{colors[0]}}; font-weight:bold;">🟢 悲觀線:</span> <span>\${{selectedData.line1.toFixed(2)}}</span></li>
-                </ul>
-            `;
-        }}
-    }});
-</script>
-
-</body>
-</html>
-"""
-
-# 5. 寫入 index.html (GitHub Actions 隨後會自動將此檔案 Commit 提交)
+# ==========================================
+# 4. 輸出全新排版網頁 (整合 Plotly 互動圖表與點擊側邊欄)
+# ==========================================
+# 提示：為了防止 Python f-string 語法解析出錯，HTML與JS中的大括號都必須雙寫成 {{ }} 
 with open("index.html", "w", encoding="utf-8") as f:
-    f.write(html_template)
+    f.write(f"""<!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>{ticker} 投資決策儀表板</title>
+        <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+        <style>
+            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; margin: 30px; background-color: #f8f9fa; color: #333; display: flex; flex-direction: column; align-items: center; }}
+            h1 {{ color: #111; font-size: 28px; margin-bottom: 5px; text-align: center; }}
+            h2 {{ color: #6c757d; font-size: 15px; font-weight: normal; margin-bottom: 30px; text-align: center; }}
+            
+            /* 數據卡片排版 */
+            .metric-box {{ display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; flex-wrap: wrap; width: 85%; max-width: 1200px; }}
+            .metric {{ background: #fff; padding: 15px 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); min-width: 180px; text-align: center; }}
+            .metric-title {{ font-size: 13px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }}
+            .metric-value {{ font-size: 26px; font-weight: bold; color: #111; margin-top: 8px; }}
+            
+            /* CNN 進度條 */
+            .gauge-wrapper {{ background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 85%; max-width: 1200px; margin-bottom: 25px; box-sizing: border-box; }}
+            .gauge-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #111; }}
+            .gauge-bar-bg {{ background: #e9ecef; height: 24px; border-radius: 12px; position: relative; overflow: hidden; display: flex; }}
+            .gauge-fill {{ background: {gauge_color}; width: {current_fg_score}%; height: 100%; border-radius: 12px 0 0 12px; }}
+            .gauge-text {{ position: absolute; right: 15px; top: 2px; color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
+            .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #6c757d; font-weight: bold; }}
+            
+            /* 核心：圖表與側邊欄的並排版面 */
+            .main-content {{ display: flex; width: 85%; max-width: 1200px; gap: 25px; margin-bottom: 25px; }}
+            .chart-container {{ flex: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
+            .sidebar {{ width: 320px; }}
+            .data-card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 2px solid #e0e6ed; box-sizing: border-box; height: 100%; min-height: 450px; transition: all 0.3s ease; text-align: left; }}
+            .data-card.active {{ border-color: #4A90E2; box-shadow: 0 4px 16px rgba(74, 144, 226, 0.15); }}
+            .sidebar-title {{ margin-top: 0; color: #333; border-bottom: 2px solid #eef2f5; padding-bottom: 8px; font-size: 18px; }}
+            .price-box {{ background-color: #f1f5f9; padding: 12px; border-radius: 6px; font-size: 18px; font-weight: bold; margin: 15px 0; display: flex; justify-content: space-between; }}
+            ul {{ list-style: none; padding: 0; margin: 0; }}
+            li {{ padding: 10px 0; border-bottom: 1px dashed #f0f0f0; display: flex; justify-content: space-between; font-size: 14px; }}
+            .hint {{ color: #888; font-size: 14px; line-height: 1.6; }}
+            
+            .info {{ margin-top: 30px; font-size: 13px; color: #adb5bd; text-align: center; }}
+        </style>
+    </head>
+    <body>
+        <h1>{ticker} 🎯 投資決策儀表板</h1>
+        <h2>數據驅動看板：完美結合統計學價格軌道與美股即時情緒指標</h2>
+        
+        <div class="metric-box">
+            <div class="metric">
+                <div class="metric-title">{ticker} 最新收盤價</div>
+                <div class="metric-value">${df['close'].iloc[-1]:.2f}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-title">五線譜中軸 (TL)</div>
+                <div class="metric-value" style="color: #008800;">${df['TL'].iloc[-1]:.2f}</div>
+            </div>
+            <div class="metric">
+                <div class="metric-title">CNN 即時情緒狀態</div>
+                <div class="metric-value" style="color: {gauge_color};">{current_fg_rating}</div>
+            </div>
+        </div>
 
-print("全新的互動式 index.html 已成功生成！")
+        <div class="gauge-wrapper">
+            <div class="gauge-title">📊 CNN Fear & Greed Index 即時量表 (當前分數: {current_fg_score})</div>
+            <div class="gauge-bar-bg">
+                <div class="gauge-fill"></div>
+                <span class="gauge-text" style="left: calc({current_fg_score}% - 25px); color: { '#333' if current_fg_score < 10 else '#fff' }; text-shadow: { 'none' if current_fg_score < 10 else '1px 1px 2px rgba(0,0,0,0.5)' };">{current_fg_score}</span>
+            </div>
+            <div class="gauge-labels">
+                <span style="color: #cc0000;">極度恐慌 (0)</span>
+                <span style="color: #ff9900;">恐慌 (25)</span>
+                <span style="color: #888888;">中立 (50)</span>
+                <span style="color: #66cc00;">貪婪 (75)</span>
+                <span style="color: #008800;">極度貪婪 (100)</span>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <div class="chart-container">
+                <div style="font-size: 16px; font-weight: bold; text-align: left; margin-bottom: 15px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖 (點擊圖上任意點查看細節)</div>
+                <div id="plotly-chart"></div>
+            </div>
+            <div class="sidebar">
+                <div id="sidebar-content" class="data-card">
+                    <h3 class="sidebar-title">📊 點選數據節點</h3>
+                    <p class="hint">請用滑鼠點擊左側圖表上 {ticker} 真實收盤價的任意時間點，此處將即時顯示當天的五線譜詳細價位資訊。</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="info">
+            <p>最後更新日期：{last_date} | 本網頁由 GitHub Actions 雲端虛擬機於美股收盤後天天自動執行更新</p>
+        </div>
+
+        <script>
+            // 接收來自 Python 的完整五線譜數據
+            const stockData = {json_data_str};
+
+            const dates = stockData.map(d => d.date);
+            const closes = stockData.map(d => d.close);
+            
+            // 定義五線譜配色
+            const colors = ["#purple", "#blue", "#green", "#orange", "#red"];
+
+            const data = [
+                {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', line: {{color: '#000000', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', line: {{color: '#ffc107', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.tl), name: '趨勢中軸線 (TL)', type: 'scatter', line: {{color: '#28a745', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', line: {{color: '#007bff', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
+            ];
+
+            const layout = {{
+                hovermode: 'x unified',
+                margin: {{ r: 10, l: 40, t: 10, b: 40 }},
+                height: 500,
+                legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }},
+                xaxis: {{ type: 'date', gridcolor: '#f0f0f0' }},
+                yaxis: {{ gridcolor: '#f0f0f0' }},
+                plot_bgcolor: '#ffffff',
+                paper_bgcolor: '#ffffff'
+            }};
+
+            const chartDiv = document.getElementById('plotly-chart');
+            Plotly.newPlot(chartDiv, data, layout);
+
+            // 監聽前端圖表的點擊事件 (不用經過 Python 後端)
+            chartDiv.on('plotly_click', function(dataEvent){{
+                const pointIndex = dataEvent.points[0].pointIndex;
+                const selectedData = stockData[pointIndex];
+                if(selectedData) {{
+                    const sidebar = document.getElementById('sidebar-content');
+                    sidebar.className = "data-card active";
+                    sidebar.innerHTML = `
+                        <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2;">📈 數據細節</h3>
+                        <p><b>📅 日期:</b> \${{selectedData.date}}</p>
+                        <div class="price-box">
+                            <span>💰 {ticker} 股價:</span>
+                            <span style="color: #222;">\${{selectedData.close.toFixed(2)}}</span>
+                        </div>
+                        <h4 style="margin: 10px 0 5px 0; color: #555; font-size: 14px;">五線譜五個價位：</h4>
+                        <ul>
+                            <li><span style="color:#dc3545; font-weight:bold;">🔴 極樂觀線 (+2SD):</span> <span>\${{selectedData.p2sd.toFixed(2)}}</span></li>
+                            <li><span style="color:#ffc107; font-weight:bold;">🟠 相對樂觀 (+1SD):</span> <span>\${{selectedData.p1sd.toFixed(2)}}</span></li>
+                            <li><span style="color:#28a745; font-weight:bold;">🔵 趨勢中軸 (TL):</span> <span>\${{selectedData.tl.toFixed(2)}}</span></li>
+                            <li><span style="color:#007bff; font-weight:bold;">🟢 相對悲觀 (-1SD):</span> <span>\${{selectedData.m1sd.toFixed(2)}}</span></li>
+                            <li><span style="color:#6f42c1; font-weight:bold;">🟣 極悲觀線 (-2SD):</span> <span>\${{selectedData.m2sd.toFixed(2)}}</span></li>
+                        </ul>
+                    `;
+                }}
+            }});
+        </script>
+    </body>
+    </html>
+    """)
+print("視覺化儀表板網頁 index.html 產生成功！")
