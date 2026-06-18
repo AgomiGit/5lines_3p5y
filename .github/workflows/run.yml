@@ -6,15 +6,18 @@ on:
     - cron: '0 22 * * *'
   workflow_dispatch: # 允許你隨時點擊按鈕手動更新
 
+permissions:
+  contents: write
+
 jobs:
   update-chart:
     runs-on: ubuntu-latest
     steps:
     - name: 檢查儲存庫代碼
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4 # 升級到 v4，消滅 Node.js 20 警告
 
     - name: 設定 Python 環境
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5 # 升級到 v5，消滅 Node.js 20 警告
       with:
         python-version: '3.11'
 
@@ -22,13 +25,13 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install mpld3  # 用於將圖表轉網頁的套件
+        pip install mpld3
 
     - name: 執行五線譜運算並生成網頁
       run: python main.py
 
     - name: 自動部署到 GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
+      uses: peaceiris/actions-gh-pages@v4 # 升級到 v4，消滅 Node.js 20 警告
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: ./
