@@ -78,54 +78,59 @@ else:
     gauge_color = "#008800" # 極度貪婪
 
 # ==========================================
-# 4. 輸出全新排版網頁 (CSS 強行隱形法)
+# 4. 輸出全新排版網頁 (Compact 手機優化下置式佈局)
 # ==========================================
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""<!DOCTYPE html>
     <html>
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{ticker} 投資決策儀表板</title>
         <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
         <style>
-            body {{ font-family: 'Helvetica Neue', Arial, sans-serif; margin: 30px; background-color: #f8f9fa; color: #333; display: flex; flex-direction: column; align-items: center; }}
-            h1 {{ color: #111; font-size: 28px; margin-bottom: 5px; text-align: center; }}
-            h2 {{ color: #6c757d; font-size: 15px; font-weight: normal; margin-bottom: 30px; text-align: center; }}
+            body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 15px; background-color: #f8f9fa; color: #333; display: flex; flex-direction: column; align-items: center; }}
+            h1 {{ color: #111; font-size: 24px; margin: 10px 0 5px 0; text-align: center; }}
+            h2 {{ color: #6c757d; font-size: 13px; font-weight: normal; margin-bottom: 20px; text-align: center; padding: 0 10px; }}
             
             /* 數據卡片排版 */
-            .metric-box {{ display: flex; justify-content: center; gap: 30px; margin-bottom: 30px; flex-wrap: wrap; width: 85%; max-width: 1200px; }}
-            .metric {{ background: #fff; padding: 15px 30px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); min-width: 180px; text-align: center; }}
-            .metric-title {{ font-size: 13px; color: #6c757d; text-transform: uppercase; letter-spacing: 0.5px; }}
-            .metric-value {{ font-size: 26px; font-weight: bold; color: #111; margin-top: 8px; }}
+            .metric-box {{ display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; width: 100%; max-width: 1200px; }}
+            .metric {{ background: #fff; padding: 12px 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); flex: 1; min-width: 140px; text-align: center; }}
+            .metric-title {{ font-size: 11px; color: #6c757d; text-transform: uppercase; }}
+            .metric-value {{ font-size: 20px; font-weight: bold; color: #111; margin-top: 5px; }}
             
             /* CNN 進度條 */
-            .gauge-wrapper {{ background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 85%; max-width: 1200px; margin-bottom: 25px; box-sizing: border-box; }}
-            .gauge-title {{ font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #111; }}
-            .gauge-bar-bg {{ background: #e9ecef; height: 24px; border-radius: 12px; position: relative; overflow: hidden; display: flex; }}
-            .gauge-fill {{ background: {gauge_color}; width: {current_fg_score}%; height: 100%; border-radius: 12px 0 0 12px; }}
-            .gauge-text {{ position: absolute; right: 15px; top: 2px; color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
-            .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #6c757d; font-weight: bold; }}
+            .gauge-wrapper {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); width: 100%; max-width: 1200px; margin-bottom: 20px; box-sizing: border-box; }}
+            .gauge-title {{ font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #111; }}
+            .gauge-bar-bg {{ background: #e9ecef; height: 20px; border-radius: 10px; position: relative; overflow: hidden; display: flex; }}
+            .gauge-fill {{ background: {gauge_color}; width: {current_fg_score}%; height: 100%; border-radius: 10px 0 0 10px; }}
+            .gauge-text {{ position: absolute; right: 15px; top: 1px; color: #fff; font-weight: bold; font-size: 12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
+            .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #6c757d; font-weight: bold; }}
             
-            /* 主要內容區 */
-            .main-content {{ display: flex; width: 85%; max-width: 1200px; gap: 25px; margin-bottom: 25px; }}
-            .chart-container {{ flex: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
-            .sidebar {{ width: 320px; }}
-            .data-card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 2px solid #e0e6ed; box-sizing: border-box; height: 100%; min-height: 450px; transition: all 0.3s ease; text-align: left; }}
+            /* 🔥 核心改動：改為全寬直向排列佈局，圖表在上、細節在下 */
+            .main-content {{ display: flex; flex-direction: column; width: 100%; max-width: 1200px; gap: 20px; margin-bottom: 20px; }}
+            .chart-container {{ background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
+            
+            /* 緊湊下置式數據卡 */
+            .data-card {{ background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); border: 2px solid #e0e6ed; box-sizing: border-box; width: 100%; transition: all 0.3s ease; text-align: left; }}
             .data-card.active {{ border-color: #4A90E2; box-shadow: 0 4px 16px rgba(74, 144, 226, 0.15); }}
             .sidebar-title {{ margin-top: 0; color: #333; border-bottom: 2px solid #eef2f5; padding-bottom: 8px; font-size: 18px; }}
-            .price-box {{ background-color: #f1f5f9; padding: 12px; border-radius: 6px; font-size: 18px; font-weight: bold; margin: 15px 0; display: flex; justify-content: space-between; }}
-            ul {{ list-style: none; padding: 0; margin: 0; }}
-            li {{ padding: 10px 0; border-bottom: 1px dashed #f0f0f0; display: flex; justify-content: space-between; font-size: 14px; }}
-            .hint {{ color: #888; font-size: 14px; line-height: 1.6; }}
             
-            /* 🔥【宇宙無敵大核心】強行用 CSS 把 Plotly 的預設黑框/白框提示盒徹底隱形！ */
-            .hoverlayer {{
-                display: none !important;
-                visibility: hidden !important;
-                opacity: 0 !important;
-            }}
+            /* 價格大字盒 */
+            .price-box {{ background-color: #f1f5f9; padding: 12px 20px; border-radius: 6px; font-size: 20px; font-weight: bold; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; }}
             
-            .info {{ margin-top: 30px; font-size: 13px; color: #adb5bd; text-align: center; }}
+            /* 🔥 手機自適應網格：大螢幕橫排，手機自動變兩排或單排 */
+            .grid-list {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 0; margin: 0; list-style: none; }}
+            .grid-list li {{ padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #ccc; display: flex; flex-direction: column; gap: 4px; }}
+            .grid-list li .line-name {{ font-size: 12px; color: #666; font-weight: 500; }}
+            .grid-list li .line-val {{ font-size: 16px; font-weight: bold; color: #111; }}
+            
+            .hint {{ color: #888; font-size: 13px; line-height: 1.6; margin: 0; text-align: center; }}
+            
+            /* 強行把 Plotly 的預設黑框提示盒徹底隱形 */
+            .hoverlayer {{ display: none !important; visibility: hidden !important; opacity: 0 !important; }}
+            
+            .info {{ margin-top: 20px; font-size: 11px; color: #adb5bd; text-align: center; padding: 0 10px; }}
         </style>
     </head>
     <body>
@@ -164,14 +169,14 @@ with open("index.html", "w", encoding="utf-8") as f:
         
         <div class="main-content">
             <div class="chart-container">
-                <div style="font-size: 16px; font-weight: bold; text-align: left; margin-bottom: 15px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖 (滑鼠點擊圖上任意處查看細節)</div>
+                <div style="font-size: 15px; font-weight: bold; text-align: left; margin-bottom: 10px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖</div>
                 <div id="plotly-chart"></div>
             </div>
-            <div class="sidebar">
-                <div id="sidebar-content" class="data-card">
-                    <h3 class="sidebar-title">📊 點選數據節點</h3>
-                    <p class="hint">請用滑鼠點擊左側圖表上 {ticker} 真實收盤價的任意時間點，此處將即時顯示當天的五線譜詳細價位資訊。</p>
-                </div>
+            
+            # 下方緊湊數據觀測盾
+            <div id="sidebar-content" class="data-card">
+                <h3 class="sidebar-title">📊 點選數據節點</h3>
+                <p class="hint">請用手指點擊上方圖表上 {ticker} 真實收盤價的任意時間點，此處將即時顯示當天的五線譜詳細價位資訊。</p>
             </div>
         </div>
 
@@ -184,7 +189,6 @@ with open("index.html", "w", encoding="utf-8") as f:
             const dates = stockData.map(d => d.date);
             const closes = stockData.map(d => d.close);
             
-            // 恢復原本的數據格式，這樣才能讓點擊軌道正常追蹤
             const data = [
                 {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', line: {{color: '#000000', width: 2}} }},
                 {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
@@ -194,12 +198,11 @@ with open("index.html", "w", encoding="utf-8") as f:
                 {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
             ];
 
-            // 保持最敏銳的捕獲機制
             const layout = {{
                 hovermode: 'x unified',
-                margin: {{ r: 10, l: 40, t: 10, b: 40 }},
-                height: 500,
-                legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }},
+                margin: {{ r: 5, l: 35, t: 10, b: 30 }},
+                height: 400, // 調低高度，更適合手機垂直滾動查看
+                legend: {{ orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }},
                 xaxis: {{ type: 'date', gridcolor: '#f0f0f0' }},
                 yaxis: {{ gridcolor: '#f0f0f0' }},
                 plot_bgcolor: '#ffffff',
@@ -209,7 +212,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             const chartDiv = document.getElementById('plotly-chart');
             Plotly.newPlot(chartDiv, data, layout);
 
-            // 監聽前端圖表的點擊事件
+            // 監聽前端圖表的點擊與輕觸事件
             chartDiv.on('plotly_click', function(dataEvent){{
                 const pointIndex = dataEvent.points[0].pointIndex;
                 const selectedData = stockData[pointIndex];
@@ -217,20 +220,19 @@ with open("index.html", "w", encoding="utf-8") as f:
                     const sidebar = document.getElementById('sidebar-content');
                     sidebar.className = "data-card active";
                     
+                    // 重塑為 Grid 緊湊型排版，完美適應手機寬度
                     sidebar.innerHTML = `
-                        <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2;">📈 數據細節</h3>
-                        <p><b>📅 日期:</b> ` + selectedData.date + `</p>
+                        <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2; margin-bottom: 12px;">📈 歷史數據細節 (📅 ` + selectedData.date + `)</h3>
                         <div class="price-box">
-                            <span>💰 {ticker} 股價:</span>
+                            <span>💰 {ticker} 當日股價:</span>
                             <span style="color: #222;">$` + selectedData.close.toFixed(2) + `</span>
                         </div>
-                        <h4 style="margin: 10px 0 5px 0; color: #555; font-size: 14px;">五線譜五個價位：</h4>
-                        <ul>
-                            <li><span style="color:#dc3545; font-weight:bold;">🔴 極樂觀線 (+2SD):</span> <span>$` + selectedData.p2sd.toFixed(2) + `</span></li>
-                            <li><span style="color:#ffc107; font-weight:bold;">🟠 相對樂觀 (+1SD):</span> <span>$` + selectedData.p1sd.toFixed(2) + `</span></li>
-                            <li><span style="color:#28a745; font-weight:bold;">🔵 趨勢中軸 (TL):</span> <span>$` + selectedData.tl.toFixed(2) + `</span></li>
-                            <li><span style="color:#007bff; font-weight:bold;">🟢 相對悲觀 (-1SD):</span> <span>$` + selectedData.m1sd.toFixed(2) + `</span></li>
-                            <li><span style="color:#6f42c1; font-weight:bold;">🟣 極悲觀線 (-2SD):</span> <span>$` + selectedData.m2sd.toFixed(2) + `</span></li>
+                        <ul class="grid-list">
+                            <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">$` + selectedData.p2sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">$` + selectedData.p1sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">$` + selectedData.tl.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">$` + selectedData.m1sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">$` + selectedData.m2sd.toFixed(2) + `</span></li>
                         </ul>
                     `;
                 }}
