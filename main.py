@@ -78,7 +78,7 @@ else:
     gauge_color = "#008800" # 極度貪婪
 
 # ==========================================
-# 4. 輸出全新排版網頁 (修復字串解析，並關閉 Hover 遮擋)
+# 4. 輸出全新排版網頁 (修復點擊無回應Bug)
 # ==========================================
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""<!DOCTYPE html>
@@ -106,7 +106,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             .gauge-text {{ position: absolute; right: 15px; top: 2px; color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
             .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #6c757d; font-weight: bold; }}
             
-            /* 主要內容區：左邊圖表，右邊側邊欄 */
+            /* 主要內容區 */
             .main-content {{ display: flex; width: 85%; max-width: 1200px; gap: 25px; margin-bottom: 25px; }}
             .chart-container {{ flex: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
             .sidebar {{ width: 320px; }}
@@ -177,7 +177,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             const dates = stockData.map(d => d.date);
             const closes = stockData.map(d => d.close);
             
-            // 修正點 1：移除了 hoverinfo，設定為 'none' 關閉遮擋方塊，保持五線譜絕對乾淨
+            // 重要修正：hoverinfo='none' 負責把漂浮框藏起來，讓畫面絕對乾淨
             const data = [
                 {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', hoverinfo: 'none', line: {{color: '#000000', width: 2}} }},
                 {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
@@ -187,9 +187,9 @@ with open("index.html", "w", encoding="utf-8") as f:
                 {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
             ];
 
-            // 修正點 2：將 hovermode 設為 false，避免游標經過時跑出任何提示框
+            // 重要修正：hovermode 必須設為 'x' (不能是 false)，點擊事件才會生效
             const layout = {{
-                hovermode: false,
+                hovermode: 'x',
                 margin: {{ r: 10, l: 40, t: 10, b: 40 }},
                 height: 500,
                 legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }},
@@ -210,7 +210,6 @@ with open("index.html", "w", encoding="utf-8") as f:
                     const sidebar = document.getElementById('sidebar-content');
                     sidebar.className = "data-card active";
                     
-                    // 修正點 3：移除轉義的反斜線，改用正確的 JavaScript Template Literals 字串替換
                     sidebar.innerHTML = `
                         <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2;">📈 數據細節</h3>
                         <p><b>📅 日期:</b> ` + selectedData.date + `</p>
