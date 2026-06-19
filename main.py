@@ -78,7 +78,7 @@ else:
     gauge_color = "#008800" # 極度貪婪
 
 # ==========================================
-# 4. 輸出全新排版網頁 (修復點擊無回應Bug)
+# 4. 輸出全新排版網頁 (CSS 強行隱形法)
 # ==========================================
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""<!DOCTYPE html>
@@ -117,6 +117,13 @@ with open("index.html", "w", encoding="utf-8") as f:
             ul {{ list-style: none; padding: 0; margin: 0; }}
             li {{ padding: 10px 0; border-bottom: 1px dashed #f0f0f0; display: flex; justify-content: space-between; font-size: 14px; }}
             .hint {{ color: #888; font-size: 14px; line-height: 1.6; }}
+            
+            /* 🔥【宇宙無敵大核心】強行用 CSS 把 Plotly 的預設黑框/白框提示盒徹底隱形！ */
+            .hoverlayer {{
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+            }}
             
             .info {{ margin-top: 30px; font-size: 13px; color: #adb5bd; text-align: center; }}
         </style>
@@ -157,7 +164,7 @@ with open("index.html", "w", encoding="utf-8") as f:
         
         <div class="main-content">
             <div class="chart-container">
-                <div style="font-size: 16px; font-weight: bold; text-align: left; margin-bottom: 15px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖 (點擊圖上任意點查看細節)</div>
+                <div style="font-size: 16px; font-weight: bold; text-align: left; margin-bottom: 15px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖 (滑鼠點擊圖上任意處查看細節)</div>
                 <div id="plotly-chart"></div>
             </div>
             <div class="sidebar">
@@ -177,19 +184,19 @@ with open("index.html", "w", encoding="utf-8") as f:
             const dates = stockData.map(d => d.date);
             const closes = stockData.map(d => d.close);
             
-            // 重要修正：hoverinfo='none' 負責把漂浮框藏起來，讓畫面絕對乾淨
+            // 恢復原本的數據格式，這樣才能讓點擊軌道正常追蹤
             const data = [
-                {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', hoverinfo: 'none', line: {{color: '#000000', width: 2}} }},
-                {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#ffc107', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.tl), name: '趨勢中軸線 (TL)', type: 'scatter', hoverinfo: 'none', line: {{color: '#28a745', width: 2}} }},
-                {{ x: dates, y: stockData.map(d => d.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#007bff', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
+                {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', line: {{color: '#000000', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', line: {{color: '#ffc107', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.tl), name: '趨勢中軸線 (TL)', type: 'scatter', line: {{color: '#28a745', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', line: {{color: '#007bff', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
             ];
 
-            // 重要修正：hovermode 必須設為 'x' (不能是 false)，點擊事件才會生效
+            // 保持最敏銳的捕獲機制
             const layout = {{
-                hovermode: 'x',
+                hovermode: 'x unified',
                 margin: {{ r: 10, l: 40, t: 10, b: 40 }},
                 height: 500,
                 legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }},
