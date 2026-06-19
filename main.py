@@ -78,9 +78,8 @@ else:
     gauge_color = "#008800" # 極度貪婪
 
 # ==========================================
-# 4. 輸出全新排版網頁 (整合 Plotly 互動圖表與點擊側邊欄)
+# 4. 輸出全新排版網頁 (修復字串解析，並關閉 Hover 遮擋)
 # ==========================================
-# 提示：為了防止 Python f-string 語法解析出錯，HTML與JS中的大括號都必須雙寫成 {{ }} 
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""<!DOCTYPE html>
     <html>
@@ -107,7 +106,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             .gauge-text {{ position: absolute; right: 15px; top: 2px; color: #fff; font-weight: bold; font-size: 14px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
             .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: #6c757d; font-weight: bold; }}
             
-            /* 核心：圖表與側邊欄的並排版面 */
+            /* 主要內容區：左邊圖表，右邊側邊欄 */
             .main-content {{ display: flex; width: 85%; max-width: 1200px; gap: 25px; margin-bottom: 25px; }}
             .chart-container {{ flex: 1; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
             .sidebar {{ width: 320px; }}
@@ -174,26 +173,23 @@ with open("index.html", "w", encoding="utf-8") as f:
         </div>
 
         <script>
-            // 接收來自 Python 的完整五線譜數據
             const stockData = {json_data_str};
-
             const dates = stockData.map(d => d.date);
             const closes = stockData.map(d => d.close);
             
-            // 定義五線譜配色
-            const colors = ["#purple", "#blue", "#green", "#orange", "#red"];
-
+            // 修正點 1：移除了 hoverinfo，設定為 'none' 關閉遮擋方塊，保持五線譜絕對乾淨
             const data = [
-                {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', line: {{color: '#000000', width: 2}} }},
-                {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', line: {{color: '#ffc107', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.tl), name: '趨勢中軸線 (TL)', type: 'scatter', line: {{color: '#28a745', width: 2}} }},
-                {{ x: dates, y: stockData.map(d => d.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', line: {{color: '#007bff', width: 1.5, dash: 'dash'}} }},
-                {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
+                {{ x: dates, y: closes, name: '{ticker} 真實收盤價', type: 'scatter', mode: 'lines', hoverinfo: 'none', line: {{color: '#000000', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#dc3545', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#ffc107', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.tl), name: '趨勢中軸線 (TL)', type: 'scatter', hoverinfo: 'none', line: {{color: '#28a745', width: 2}} }},
+                {{ x: dates, y: stockData.map(d => d.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#007bff', width: 1.5, dash: 'dash'}} }},
+                {{ x: dates, y: stockData.map(d => d.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', hoverinfo: 'none', line: {{color: '#6f42c1', width: 1.5, dash: 'dash'}} }}
             ];
 
+            // 修正點 2：將 hovermode 設為 false，避免游標經過時跑出任何提示框
             const layout = {{
-                hovermode: 'x unified',
+                hovermode: false,
                 margin: {{ r: 10, l: 40, t: 10, b: 40 }},
                 height: 500,
                 legend: {{ orientation: 'h', y: -0.15, x: 0.5, xanchor: 'center' }},
@@ -206,27 +202,29 @@ with open("index.html", "w", encoding="utf-8") as f:
             const chartDiv = document.getElementById('plotly-chart');
             Plotly.newPlot(chartDiv, data, layout);
 
-            // 監聽前端圖表的點擊事件 (不用經過 Python 後端)
+            // 監聽前端圖表的點擊事件
             chartDiv.on('plotly_click', function(dataEvent){{
                 const pointIndex = dataEvent.points[0].pointIndex;
                 const selectedData = stockData[pointIndex];
                 if(selectedData) {{
                     const sidebar = document.getElementById('sidebar-content');
                     sidebar.className = "data-card active";
+                    
+                    // 修正點 3：移除轉義的反斜線，改用正確的 JavaScript Template Literals 字串替換
                     sidebar.innerHTML = `
                         <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2;">📈 數據細節</h3>
-                        <p><b>📅 日期:</b> \${{selectedData.date}}</p>
+                        <p><b>📅 日期:</b> ` + selectedData.date + `</p>
                         <div class="price-box">
                             <span>💰 {ticker} 股價:</span>
-                            <span style="color: #222;">\${{selectedData.close.toFixed(2)}}</span>
+                            <span style="color: #222;">$` + selectedData.close.toFixed(2) + `</span>
                         </div>
                         <h4 style="margin: 10px 0 5px 0; color: #555; font-size: 14px;">五線譜五個價位：</h4>
                         <ul>
-                            <li><span style="color:#dc3545; font-weight:bold;">🔴 極樂觀線 (+2SD):</span> <span>\${{selectedData.p2sd.toFixed(2)}}</span></li>
-                            <li><span style="color:#ffc107; font-weight:bold;">🟠 相對樂觀 (+1SD):</span> <span>\${{selectedData.p1sd.toFixed(2)}}</span></li>
-                            <li><span style="color:#28a745; font-weight:bold;">🔵 趨勢中軸 (TL):</span> <span>\${{selectedData.tl.toFixed(2)}}</span></li>
-                            <li><span style="color:#007bff; font-weight:bold;">🟢 相對悲觀 (-1SD):</span> <span>\${{selectedData.m1sd.toFixed(2)}}</span></li>
-                            <li><span style="color:#6f42c1; font-weight:bold;">🟣 極悲觀線 (-2SD):</span> <span>\${{selectedData.m2sd.toFixed(2)}}</span></li>
+                            <li><span style="color:#dc3545; font-weight:bold;">🔴 極樂觀線 (+2SD):</span> <span>$` + selectedData.p2sd.toFixed(2) + `</span></li>
+                            <li><span style="color:#ffc107; font-weight:bold;">🟠 相對樂觀 (+1SD):</span> <span>$` + selectedData.p1sd.toFixed(2) + `</span></li>
+                            <li><span style="color:#28a745; font-weight:bold;">🔵 趨勢中軸 (TL):</span> <span>$` + selectedData.tl.toFixed(2) + `</span></li>
+                            <li><span style="color:#007bff; font-weight:bold;">🟢 相對悲觀 (-1SD):</span> <span>$` + selectedData.m1sd.toFixed(2) + `</span></li>
+                            <li><span style="color:#6f42c1; font-weight:bold;">🟣 極悲觀線 (-2SD):</span> <span>$` + selectedData.m2sd.toFixed(2) + `</span></li>
                         </ul>
                     `;
                 }}
