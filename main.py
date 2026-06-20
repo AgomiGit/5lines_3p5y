@@ -54,6 +54,9 @@ for date_idx, row in df.iterrows():
     })
 json_data_str = json.dumps(chart_data)
 
+# 🛠️ 額外提取最新一天的數據做為預設顯示
+latest_data = chart_data[-1]
+
 # ==========================================
 # 3. 獲取 CNN Fear & Greed 當前最新即時分數
 # ==========================================
@@ -107,7 +110,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             .gauge-text {{ position: absolute; right: 15px; top: 1px; color: #fff; font-weight: bold; font-size: 12px; text-shadow: 1px 1px 2px rgba(0,0,0,0.5); }}
             .gauge-labels {{ display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: #6c757d; font-weight: bold; }}
             
-            /* 🔥 核心改動：改為全寬直向排列佈局，圖表在上、細節在下 */
+            /* 全寬直向排列佈局 */
             .main-content {{ display: flex; flex-direction: column; width: 100%; max-width: 1200px; gap: 20px; margin-bottom: 20px; }}
             .chart-container {{ background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); min-width: 0; }}
             
@@ -119,7 +122,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             /* 價格大字盒 */
             .price-box {{ background-color: #f1f5f9; padding: 12px 20px; border-radius: 6px; font-size: 20px; font-weight: bold; margin: 15px 0; display: flex; justify-content: space-between; align-items: center; }}
             
-            /* 🔥 手機自適應網格：大螢幕橫排，手機自動變兩排或單排 */
+            /* 手機自適應網格 */
             .grid-list {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; padding: 0; margin: 0; list-style: none; }}
             .grid-list li {{ padding: 12px; background: #f8f9fa; border-radius: 6px; border-left: 4px solid #ccc; display: flex; flex-direction: column; gap: 4px; }}
             .grid-list li .line-name {{ font-size: 12px; color: #666; font-weight: 500; }}
@@ -173,10 +176,19 @@ with open("index.html", "w", encoding="utf-8") as f:
                 <div id="plotly-chart"></div>
             </div>
             
-            # 下方緊湊數據觀測盾
-            <div id="sidebar-content" class="data-card">
-                <h3 class="sidebar-title">📊 點選數據節點</h3>
-                <p class="hint">請用手指點擊上方圖表上 {ticker} 真實收盤價的任意時間點，此處將即時顯示當天的五線譜詳細價位資訊。</p>
+            <div id="sidebar-content" class="data-card active">
+                <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2; margin-bottom: 12px;">📈 歷史數據細節 (📅 {latest_data['date']})</h3>
+                <div class="price-box">
+                    <span>💰 {ticker} 當日股價:</span>
+                    <span style="color: #222;">${latest_data['close']:.2f}</span>
+                </div>
+                <ul class="grid-list">
+                    <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">${latest_data['p2sd']:.2f}</span></li>
+                    <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">${latest_data['p1sd']:.2f}</span></li>
+                    <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">${latest_data['tl']:.2f}</span></li>
+                    <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">${latest_data['m1sd']:.2f}</span></li>
+                    <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">${latest_data['m2sd']:.2f}</span></li>
+                </ul>
             </div>
         </div>
 
@@ -201,18 +213,24 @@ with open("index.html", "w", encoding="utf-8") as f:
             const layout = {{
                 hovermode: 'x unified',
                 margin: {{ r: 5, l: 35, t: 10, b: 30 }},
-                height: 400, // 調低高度，更適合手機垂直滾動查看
+                height: 400,
                 legend: {{ orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }},
-                xaxis: {{ type: 'date', gridcolor: '#f0f0f0' }},
-                yaxis: {{ gridcolor: '#f0f0f0' }},
+                xaxis: {{ type: 'date', gridcolor: '#f0f0f0', fixedrange: true }},
+                yaxis: {{ gridcolor: '#f0f0f0', fixedrange: true }},
                 plot_bgcolor: '#ffffff',
                 paper_bgcolor: '#ffffff'
             }};
 
-            const chartDiv = document.getElementById('plotly-chart');
-            Plotly.newPlot(chartDiv, data, layout);
+            const config = {{
+                scrollZoom: false,
+                displayModeBar: false,
+                responsive: true
+            }};
 
-            // 監聽前端圖表的點擊與輕觸事件
+            const chartDiv = document.getElementById('plotly-chart');
+            Plotly.newPlot(chartDiv, data, layout, config);
+
+            // 監聽前端圖表的點擊與輕觸事件（依然有效，點選可隨時切換日期）
             chartDiv.on('plotly_click', function(dataEvent){{
                 const pointIndex = dataEvent.points[0].pointIndex;
                 const selectedData = stockData[pointIndex];
@@ -220,7 +238,6 @@ with open("index.html", "w", encoding="utf-8") as f:
                     const sidebar = document.getElementById('sidebar-content');
                     sidebar.className = "data-card active";
                     
-                    // 重塑為 Grid 緊湊型排版，完美適應手機寬度
                     sidebar.innerHTML = `
                         <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2; margin-bottom: 12px;">📈 歷史數據細節 (📅 ` + selectedData.date + `)</h3>
                         <div class="price-box">
