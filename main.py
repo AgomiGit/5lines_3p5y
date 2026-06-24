@@ -1,18 +1,51 @@
+import argparse
+import json
+
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
 import yfinance as yf
 import fear_greed
-import json
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="產生美股或台股的樂活五線譜儀表板")
+    parser.add_argument(
+        "ticker",
+        nargs="?",
+        default="QQQ",
+        help="Yahoo Finance 代碼；例如 AAPL、2330（上市）或 6488.TWO（上櫃）",
+    )
+    return parser.parse_args()
+
+
+def normalize_ticker(raw_ticker):
+    ticker = raw_ticker.strip().upper()
+    if not ticker:
+        raise ValueError("股票代碼不可為空")
+    if ticker.isdigit():
+        ticker = f"{ticker}.TW"
+    return ticker
 
 # ==========================================
-# 1. 數據抓取與正宗樂活五線譜計算 (完全保留你滿意的正確版本)
+# 1. 數據抓取與樂活五線譜計算
 # ==========================================
-ticker = "QQQ"
+args = parse_args()
+ticker = normalize_ticker(args.ticker)
+is_taiwan_stock = ticker.endswith((".TW", ".TWO"))
+currency_symbol = "NT$" if is_taiwan_stock else "$"
+sentiment_description = (
+    "統計學價格軌道與 CNN 美股市場情緒參考"
+    if is_taiwan_stock
+    else "統計學價格軌道與美股即時情緒指標"
+)
 days_window = 875
 
 print(f"正在抓取 {ticker} 的歷史數據...")
 df_yf = yf.download(ticker, start="2022-01-01")
+
+if df_yf.empty:
+    raise SystemExit(f"找不到 {ticker} 的歷史數據，請確認 Yahoo Finance 股票代碼是否正確")
 
 if isinstance(df_yf.columns, pd.MultiIndex):
     df_yf.columns = df_yf.columns.droplevel(1)
@@ -54,7 +87,7 @@ for date_idx, row in df.iterrows():
     })
 json_data_str = json.dumps(chart_data)
 
-# 🛠️ 額外提取最新一天的數據做為預設顯示
+# 提取最新一天的數據作為預設顯示
 latest_data = chart_data[-1]
 
 # ==========================================
@@ -81,7 +114,7 @@ else:
     gauge_color = "#008800" # 極度貪婪
 
 # ==========================================
-# 4. 輸出全新排版網頁 (Compact 手機優化下置式佈局)
+# 4. 輸出手機版儀表板網頁
 # ==========================================
 with open("index.html", "w", encoding="utf-8") as f:
     f.write(f"""<!DOCTYPE html>
@@ -130,7 +163,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             
             .hint {{ color: #888; font-size: 13px; line-height: 1.6; margin: 0; text-align: center; }}
             
-            /* 強行把 Plotly 的預設黑框提示盒徹底隱形 */
+            /* 隱藏 Plotly 預設提示框 */
             .hoverlayer {{ display: none !important; visibility: hidden !important; opacity: 0 !important; }}
             
             .info {{ margin-top: 20px; font-size: 11px; color: #adb5bd; text-align: center; padding: 0 10px; }}
@@ -138,16 +171,16 @@ with open("index.html", "w", encoding="utf-8") as f:
     </head>
     <body>
         <h1>{ticker} 🎯 投資決策儀表板</h1>
-        <h2>數據驅動看板：完美結合統計學價格軌道與美股即時情緒指標</h2>
+        <h2>數據驅動看板：{sentiment_description}</h2>
         
         <div class="metric-box">
             <div class="metric">
                 <div class="metric-title">{ticker} 最新收盤價</div>
-                <div class="metric-value">${df['close'].iloc[-1]:.2f}</div>
+                <div class="metric-value">{currency_symbol}{df['close'].iloc[-1]:.2f}</div>
             </div>
             <div class="metric">
                 <div class="metric-title">五線譜中軸 (TL)</div>
-                <div class="metric-value" style="color: #008800;">${df['TL'].iloc[-1]:.2f}</div>
+                <div class="metric-value" style="color: #008800;">{currency_symbol}{df['TL'].iloc[-1]:.2f}</div>
             </div>
             <div class="metric">
                 <div class="metric-title">CNN 即時情緒狀態</div>
@@ -172,7 +205,7 @@ with open("index.html", "w", encoding="utf-8") as f:
         
         <div class="main-content">
             <div class="chart-container">
-                <div style="font-size: 15px; font-weight: bold; text-align: left; margin-bottom: 10px; color: #111;">📈 QQQ 正宗樂活五線譜趨勢圖</div>
+                <div style="font-size: 15px; font-weight: bold; text-align: left; margin-bottom: 10px; color: #111;">📈 {ticker} 樂活五線譜趨勢圖</div>
                 <div id="plotly-chart"></div>
             </div>
             
@@ -180,14 +213,14 @@ with open("index.html", "w", encoding="utf-8") as f:
                 <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2; margin-bottom: 12px;">📈 歷史數據細節 (📅 {latest_data['date']})</h3>
                 <div class="price-box">
                     <span>💰 {ticker} 當日股價:</span>
-                    <span style="color: #222;">${latest_data['close']:.2f}</span>
+                    <span style="color: #222;">{currency_symbol}{latest_data['close']:.2f}</span>
                 </div>
                 <ul class="grid-list">
-                    <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">${latest_data['p2sd']:.2f}</span></li>
-                    <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">${latest_data['p1sd']:.2f}</span></li>
-                    <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">${latest_data['tl']:.2f}</span></li>
-                    <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">${latest_data['m1sd']:.2f}</span></li>
-                    <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">${latest_data['m2sd']:.2f}</span></li>
+                    <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">{currency_symbol}{latest_data['p2sd']:.2f}</span></li>
+                    <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">{currency_symbol}{latest_data['p1sd']:.2f}</span></li>
+                    <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">{currency_symbol}{latest_data['tl']:.2f}</span></li>
+                    <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">{currency_symbol}{latest_data['m1sd']:.2f}</span></li>
+                    <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">{currency_symbol}{latest_data['m2sd']:.2f}</span></li>
                 </ul>
             </div>
         </div>
@@ -230,7 +263,7 @@ with open("index.html", "w", encoding="utf-8") as f:
             const chartDiv = document.getElementById('plotly-chart');
             Plotly.newPlot(chartDiv, data, layout, config);
 
-            // 監聽前端圖表的點擊與輕觸事件（依然有效，點選可隨時切換日期）
+            // 點選圖表資料點時切換日期
             chartDiv.on('plotly_click', function(dataEvent){{
                 const pointIndex = dataEvent.points[0].pointIndex;
                 const selectedData = stockData[pointIndex];
@@ -242,14 +275,14 @@ with open("index.html", "w", encoding="utf-8") as f:
                         <h3 class="sidebar-title" style="color: #4A90E2; border-bottom-color: #4A90E2; margin-bottom: 12px;">📈 歷史數據細節 (📅 ` + selectedData.date + `)</h3>
                         <div class="price-box">
                             <span>💰 {ticker} 當日股價:</span>
-                            <span style="color: #222;">$` + selectedData.close.toFixed(2) + `</span>
+                            <span style="color: #222;">{currency_symbol}` + selectedData.close.toFixed(2) + `</span>
                         </div>
                         <ul class="grid-list">
-                            <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">$` + selectedData.p2sd.toFixed(2) + `</span></li>
-                            <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">$` + selectedData.p1sd.toFixed(2) + `</span></li>
-                            <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">$` + selectedData.tl.toFixed(2) + `</span></li>
-                            <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">$` + selectedData.m1sd.toFixed(2) + `</span></li>
-                            <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">$` + selectedData.m2sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">{currency_symbol}` + selectedData.p2sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">{currency_symbol}` + selectedData.p1sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">{currency_symbol}` + selectedData.tl.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">{currency_symbol}` + selectedData.m1sd.toFixed(2) + `</span></li>
+                            <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">{currency_symbol}` + selectedData.m2sd.toFixed(2) + `</span></li>
                         </ul>
                     `;
                 }}
