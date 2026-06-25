@@ -8,6 +8,7 @@ from sklearn.linear_model import LinearRegression
 
 
 TICKERS = [
+    "QQQ",
     "00662.TW",
     "00830.TW",
     "VOO",
