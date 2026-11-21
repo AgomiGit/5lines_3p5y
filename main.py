@@ -52,10 +52,14 @@ def build_ticker_data(ticker):
     frame["TL"] = model.predict(frame[["X"]])
 
     standard_deviation = np.std(frame["close"].values - frame["TL"].values)
+    frame["TL_plus_4SD"] = frame["TL"] + (4 * standard_deviation)
+    frame["TL_plus_3SD"] = frame["TL"] + (3 * standard_deviation)
     frame["TL_plus_2SD"] = frame["TL"] + (2 * standard_deviation)
     frame["TL_plus_1SD"] = frame["TL"] + standard_deviation
     frame["TL_minus_1SD"] = frame["TL"] - standard_deviation
     frame["TL_minus_2SD"] = frame["TL"] - (2 * standard_deviation)
+    frame["TL_minus_3SD"] = frame["TL"] - (3 * standard_deviation)
+    frame["TL_minus_4SD"] = frame["TL"] - (4 * standard_deviation)
 
     chart_data = []
     for date_index, row in frame.iterrows():
@@ -64,10 +68,14 @@ def build_ticker_data(ticker):
                 "date": date_index.strftime("%Y-%m-%d"),
                 "close": round(row["close"], 2),
                 "tl": round(row["TL"], 2),
+                "p4sd": round(row["TL_plus_4SD"], 2),
+                "p3sd": round(row["TL_plus_3SD"], 2),
                 "p1sd": round(row["TL_plus_1SD"], 2),
                 "p2sd": round(row["TL_plus_2SD"], 2),
                 "m1sd": round(row["TL_minus_1SD"], 2),
                 "m2sd": round(row["TL_minus_2SD"], 2),
+                "m3sd": round(row["TL_minus_3SD"], 2),
+                "m4sd": round(row["TL_minus_4SD"], 2),
             }
         )
 
@@ -277,11 +285,15 @@ __TICKER_OPTIONS__
                     <span style="color: #222;">${formatPrice(row.close, currency)}</span>
                 </div>
                 <ul class="grid-list">
+                    <li style="border-left-color: #7f1d1d;"><span class="line-name">+4SD 線</span><span class="line-val">${formatPrice(row.p4sd, currency)}</span></li>
+                    <li style="border-left-color: #c2410c;"><span class="line-name">+3SD 線</span><span class="line-val">${formatPrice(row.p3sd, currency)}</span></li>
                     <li style="border-left-color: #dc3545;"><span class="line-name">🔴 極樂觀線 (+2SD)</span><span class="line-val">${formatPrice(row.p2sd, currency)}</span></li>
                     <li style="border-left-color: #ffc107;"><span class="line-name">🟠 相對樂觀 (+1SD)</span><span class="line-val">${formatPrice(row.p1sd, currency)}</span></li>
                     <li style="border-left-color: #28a745;"><span class="line-name">🔵 趨勢中軸 (TL)</span><span class="line-val">${formatPrice(row.tl, currency)}</span></li>
                     <li style="border-left-color: #007bff;"><span class="line-name">🟢 相對悲觀 (-1SD)</span><span class="line-val">${formatPrice(row.m1sd, currency)}</span></li>
                     <li style="border-left-color: #6f42c1;"><span class="line-name">🟣 極悲觀線 (-2SD)</span><span class="line-val">${formatPrice(row.m2sd, currency)}</span></li>
+                    <li style="border-left-color: #4338ca;"><span class="line-name">-3SD 線</span><span class="line-val">${formatPrice(row.m3sd, currency)}</span></li>
+                    <li style="border-left-color: #1e3a8a;"><span class="line-name">-4SD 線</span><span class="line-val">${formatPrice(row.m4sd, currency)}</span></li>
                 </ul>`;
         }
 
@@ -313,11 +325,15 @@ __TICKER_OPTIONS__
 
             const traces = [
                 { x: dates, y: stockData.map(row => row.close), name: `${ticker} 收盤價`, type: 'scatter', mode: 'lines', line: {color: '#000000', width: 2} },
+                { x: dates, y: stockData.map(row => row.p4sd), name: '+4SD 線', type: 'scatter', line: {color: '#7f1d1d', width: 1.25, dash: 'dot'} },
+                { x: dates, y: stockData.map(row => row.p3sd), name: '+3SD 線', type: 'scatter', line: {color: '#c2410c', width: 1.25, dash: 'dashdot'} },
                 { x: dates, y: stockData.map(row => row.p2sd), name: '極樂觀線 (+2SD)', type: 'scatter', line: {color: '#dc3545', width: 1.5, dash: 'dash'} },
                 { x: dates, y: stockData.map(row => row.p1sd), name: '相對樂觀線 (+1SD)', type: 'scatter', line: {color: '#ffc107', width: 1.5, dash: 'dash'} },
                 { x: dates, y: stockData.map(row => row.tl), name: '趨勢中軸線 (TL)', type: 'scatter', line: {color: '#28a745', width: 2} },
                 { x: dates, y: stockData.map(row => row.m1sd), name: '相對悲觀線 (-1SD)', type: 'scatter', line: {color: '#007bff', width: 1.5, dash: 'dash'} },
-                { x: dates, y: stockData.map(row => row.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {color: '#6f42c1', width: 1.5, dash: 'dash'} }
+                { x: dates, y: stockData.map(row => row.m2sd), name: '極悲觀線 (-2SD)', type: 'scatter', line: {color: '#6f42c1', width: 1.5, dash: 'dash'} },
+                { x: dates, y: stockData.map(row => row.m3sd), name: '-3SD 線', type: 'scatter', line: {color: '#4338ca', width: 1.25, dash: 'dashdot'} },
+                { x: dates, y: stockData.map(row => row.m4sd), name: '-4SD 線', type: 'scatter', line: {color: '#1e3a8a', width: 1.25, dash: 'dot'} }
             ];
             const layout = {
                 hovermode: 'x unified',
